@@ -1,5 +1,8 @@
 require('dotenv').config();
 const express = require('express');
+const bodyParser = require('body-parser');
+const dns = require('dns');
+const urlparser = require('url');
 const cors = require('cors');
 const app = express();
 
@@ -7,41 +10,42 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors());
-
+app.use(bodyParser.urlencoded({ extended: false }));
 app.use('/public', express.static(`${process.cwd()}/public`));
 
-app.get('/', function(req, res) {
+let urlDatabase = {}; // Almacenará las URL en lugar de la base de datos MongoDB
+
+app.get('/', (req, res) => {
   res.sendFile(process.cwd() + '/views/index.html');
 });
 
 // Your first API endpoint
-app.get('/api/hello', function(req, res) {
-  res.json({ greeting: 'hello API' });
+app.post('/api/shorturl', (req, res) => {
+  const bodyurl = req.body.url;
+  const checkaddress = dns.lookup(urlparser.parse(bodyurl).hostname, (err, address) => {
+    if (!address) {
+      res.json({ error: 'invalid url' });
+    } else {
+      let shortUrl = Math.floor(Math.random() * 100000);
+      console.log(shortUrl);
+      urlDatabase[shortUrl] = bodyurl; // Almacena la URL en el objeto en lugar de la base de datos
+      res.json({ original_url: bodyurl, short_url: shortUrl });
+    }
+  });
 });
 
-// My Code
-let dataBaseUrl = {}
-let nextUrl = 1;
+// Redirige a la URL original
+app.get('/api/shorturl/:short_url', (req, res) => {
+  const shortUrl = parseInt(req.params.short_url);
+  const originalUrl = urlDatabase[shortUrl];
 
-app.post('/api/shorturl', function(req, res) {
-  const original_url = req.body.original_url;
-
-  nextUrl +1;
-  dataBaseUrl[nextUrl] = original_url;
-  const short_url = nextUrl;
-  res.json({original_url, short_url})
-});
-
-app.post('/api/shorturl/shorturl', function(req, res) {
-  const url = req.body.original_url;
-  if (dataBaseUrl.hasOwnProperty(shortUrl)) {
-    res.redirect(url);
+  if (originalUrl) {
+    res.redirect(originalUrl);
   } else {
-    res.json({error: 'invalid url'});
+    res.json({ error: 'invalid short_url' });
   }
-  res.redirect(url);
 });
 
-app.listen(port, function() {
-  console.log(`Listening on port ${port}`);
+app.listen(port, () => {
+  console.log(`Server is listening on port ${port}`);
 });
